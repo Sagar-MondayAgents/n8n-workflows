@@ -1,0 +1,6 @@
+{
+  "name": "n8n-workflows",
+  "command": "node",
+  "args": ["src/mcp-server.js"],
+  "description": "N8N Workflow Documentation MCP Server"
+}
