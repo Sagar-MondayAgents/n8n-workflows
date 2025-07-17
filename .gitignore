@@ -41,8 +41,8 @@ venv.bak/
 Thumbs.db
 
 # Application specific
-database/workflows.db
-database/workflows.db-*
+# database/workflows.db
+# database/workflows.db-*
 *.log
 
 # Temporary files
