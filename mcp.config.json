@@ -1,0 +1,49 @@
+{
+    "name": "n8n-workflows",
+    "description": "N8N Workflow Documentation System",
+    "version": "1.0.0",
+    "main": "src/mcp-server.js",
+    "type": "stdio",
+    "languages": ["javascript"],
+    "tools": {
+      "search_workflows": {
+        "description": "Search for workflows"
+      },
+      "get_workflow": {
+        "description": "Get a specific workflow"
+      },
+      "get_statistics": {
+        "description": "Get workflow statistics"
+      },
+      "get_categories": {
+        "description": "Get workflow categories"
+      },
+      "get_integrations": {
+        "description": "Get available integrations"
+      },
+      "analyze_workflow": {
+        "description": "Analyze a workflow"
+      },
+      "generate_diagram": {
+        "description": "Generate workflow diagram"
+      },
+      "export_workflow": {
+        "description": "Export workflow"
+      },
+      "bulk_analyze": {
+        "description": "Bulk analyze workflows"
+      },
+      "find_similar": {
+        "description": "Find similar workflows"
+      },
+      "create_workflow_template": {
+        "description": "Create workflow template"
+      },
+      "validate_workflow": {
+        "description": "Validate workflow"
+      },
+      "get_workflow_recommendations": {
+        "description": "Get workflow recommendations"
+      }
+    }
+  }
