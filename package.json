@@ -3,13 +3,23 @@
   "version": "1.0.0",
   "description": "N8N Workflow Documentation System - Node.js Implementation",
   "main": "src/server.js",
+  "mcp": {
+    "server": "src/mcp-server.js",
+    "name": "n8n-workflows",
+    "description": "MCP server for N8N workflow documentation"
+  },
+  "bin": {
+    "n8n-workflows-mcp": "./src/mcp-server.js"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "init": "node src/init-db.js",
     "index": "node src/index-workflows.js",
     "mcp": "node src/mcp-server.js",
-    "mcp:dev": "node --watch src/mcp-server.js"
+    "mcp:start": "node src/mcp-server.js",
+    "mcp:dev": "node --watch src/mcp-server.js",
+    "prepare": "npm run init && npm run index"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.1",
