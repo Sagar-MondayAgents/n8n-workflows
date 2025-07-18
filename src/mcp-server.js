@@ -45,7 +45,10 @@ class N8NWorkflowsMCPServer {
     this.setupDatabase();
     this.setupHandlers();
   }
-
+  // Add connect method for HTTP transports
+  async connect(transport) {
+    await this.server.connect(transport);
+  }
   setupDatabase() {
     // Initialize database connection
     if (existsSync(this.config.dbPath)) {
