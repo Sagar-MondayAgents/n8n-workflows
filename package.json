@@ -20,6 +20,8 @@
     "index": "node src/index-workflows.js",
     "mcp": "node src/mcp-server.js",
     "mcp:start": "node src/mcp-server.js",
+    "mcp:http": "node src/mcp-server.js --http",
+    "mcp:http:dev": "nodemon src/mcp-server.js --http",
     "mcp:dev": "node --watch src/mcp-server.js",
     "prepare": "npm run init"
   },
@@ -35,7 +37,8 @@
     "fs-extra": "^11.2.0",
     "helmet": "^7.1.0",
     "js-yaml": "^4.1.0",
-    "sqlite3": "^5.1.6"
+    "sqlite3": "^5.1.6",
+    "ws": "^8.16.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

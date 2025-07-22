@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Server Streaming Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .output {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .input-group {
+            margin-bottom: 10px;
+        }
+        .input-group label {
+            display: inline-block;
+            width: 150px;
+            font-weight: bold;
+        }
+        .input-group input, .input-group select {
+            padding: 5px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            width: 300px;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .warning {
+            color: #ffc107;
+        }
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .timestamp {
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4caf50;
+            transition: width 0.3s ease;
+            text-align: center;
+            color: white;
+            line-height: 20px;
+            font-size: 12px;
+        }
+        .streaming-controls {
+            background-color: #e8f4fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .connection-type {
+            display: inline-block;
+            margin-left: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .metric {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 4px 4px 0 0;
+        }
+        .tab.active {
+            background-color: white;
+            border-bottom: 2px solid white;
+            margin-bottom: -2px;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            background-color: white;
+            border: 1px solid #dee2e6;
+            border-top: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCP Server Streaming Test Client</h1>
+        
+        <div id="status" class="status disconnected">
+            <span>Disconnected</span>
+            <span class="connection-type" id="connectionType">No connection</span>
+        </div>
+        
+        <div class="controls">
+            <button id="connectWsBtn" onclick="connectWebSocket()">Connect WebSocket</button>
+            <button id="connectSseBtn" onclick="connectSSE()">Connect SSE</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button id="clearBtn" onclick="clearOutput()">Clear Output</button>
+        </div>
+
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value" id="messagesReceived">0</div>
+                <div class="metric-label">Messages Received</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="dataTransferred">0 KB</div>
+                <div class="metric-label">Data Transferred</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="connectionTime">0s</div>
+                <div class="metric-label">Connection Time</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>API Testing</h2>
+        
+        <div class="tab-container">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('standard')">Standard API</div>
+                <div class="tab" onclick="switchTab('streaming')">Streaming API</div>
+                <div class="tab" onclick="switchTab('sse')">Server-Sent Events</div>
+            </div>
+            
+            <div id="standard" class="tab-content active">
+                <h3>Standard MCP Functions</h3>
+                <button onclick="listTools()" class="api-btn">List Available Tools</button>
+                <button onclick="getStatistics()" class="api-btn">Get Statistics</button>
+                <button onclick="getCategories()" class="api-btn">Get Categories</button>
+                
+                <div class="input-group">
+                    <label>Search Query:</label>
+                    <input type="text" id="searchQuery" placeholder="e.g., telegram webhook" />
+                </div>
+                <button onclick="searchWorkflows()" class="api-btn">Search Workflows</button>
+                
+                <div class="input-group">
+                    <label>Workflow Filename:</label>
+                    <input type="text" id="workflowFilename" placeholder="e.g., 2051_Telegram_Webhook_Automation_Webhook.json" />
+                </div>
+                <button onclick="getWorkflow()" class="api-btn">Get Workflow Details</button>
+            </div>
+            
+            <div id="streaming" class="tab-content">
+                <h3>Streaming Functions</h3>
+                <div class="streaming-controls">
+                    <p>These functions support real-time streaming of results for better performance with large datasets.</p>
+                    
+                    <div class="input-group">
+                        <label>Search Query:</label>
+                        <input type="text" id="streamSearchQuery" placeholder="e.g., automation" />
+                    </div>
+                    <div class="input-group">
+                        <label>Result Limit:</label>
+                        <input type="number" id="streamLimit" value="100" min="1" max="1000" />
+                    </div>
+                    <button onclick="streamSearch()" class="api-btn">Stream Search Results</button>
+                    
+                    <hr style="margin: 20px 0;">
+                    
+                    <h4>Bulk Analysis Streaming</h4>
+                    <div class="input-group">
+                        <label>Min Nodes:</label>
+                        <input type="number" id="minNodes" placeholder="e.g., 5" />
+                    </div>
+                    <div class="input-group">
+                        <label>Max Nodes:</label>
+                        <input type="number" id="maxNodes" placeholder="e.g., 20" />
+                    </div>
+                    <button onclick="streamBulkAnalysis()" class="api-btn">Stream Bulk Analysis</button>
+                </div>
+                
+                <div class="progress-bar" id="progressBar" style="display: none;">
+                    <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
+                </div>
+            </div>
+            
+            <div id="sse" class="tab-content">
+                <h3>Server-Sent Events</h3>
+                <p>Monitor real-time server events and status updates.</p>
+                <button onclick="subscribeToEvents()" class="api-btn">Subscribe to Events</button>
+                <button onclick="unsubscribeFromEvents()" class="api-btn">Unsubscribe</button>
+                
+                <div id="eventLog" class="output" style="max-height: 300px;">
+                    <div class="log-entry">Waiting for events...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="output" id="output">
+            <div class="log-entry">
+                <span class="timestamp">[${new Date().toLocaleTimeString()}]</span> 
+                Ready to connect. Port can be configured via MCP_PORT or PORT environment variable.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let eventSource = null;
+        let connectionType = 'none';
+        let requestId = 1;
+        let pendingRequests = new Map();
+        let connectionStartTime = null;
+        let messagesReceived = 0;
+        let bytesReceived = 0;
+        let connectionTimer = null;
+
+        const PORT = window.location.port || 4302;
+        const BASE_URL = `http://localhost:${PORT}`;
+        const WS_URL = `ws://localhost:${PORT}/mcp`;
+
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const cssClass = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            
+            output.innerHTML += `
+                <div class="log-entry">
+                    <span class="timestamp">[${timestamp}]</span> 
+                    <span class="${cssClass}">${message}</span>
+                </div>
+            `;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function updateMetrics() {
+            document.getElementById('messagesReceived').textContent = messagesReceived;
+            document.getElementById('dataTransferred').textContent = `${(bytesReceived / 1024).toFixed(2)} KB`;
+            
+            if (connectionStartTime) {
+                const seconds = Math.floor((Date.now() - connectionStartTime) / 1000);
+                document.getElementById('connectionTime').textContent = `${seconds}s`;
+            }
+        }
+
+        function updateStatus(connected, type = 'none') {
+            const status = document.getElementById('status');
+            const typeElement = document.getElementById('connectionType');
+            const apiBtns = document.querySelectorAll('.api-btn');
+            
+            connectionType = type;
+            
+            if (connected) {
+                status.className = 'status connected';
+                status.querySelector('span').textContent = 'Connected';
+                typeElement.textContent = `via ${type.toUpperCase()}`;
+                document.getElementById('connectWsBtn').disabled = true;
+                document.getElementById('connectSseBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                
+                connectionStartTime = Date.now();
+                connectionTimer = setInterval(updateMetrics, 1000);
+            } else {
+                status.className = 'status disconnected';
+                status.querySelector('span').textContent = 'Disconnected';
+                typeElement.textContent = 'No connection';
+                document.getElementById('connectWsBtn').disabled = false;
+                document.getElementById('connectSseBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                
+                if (connectionTimer) {
+                    clearInterval(connectionTimer);
+                    connectionTimer = null;
+                }
+            }
+        }
+
+        function connectWebSocket() {
+            log(`Connecting to WebSocket at ${WS_URL}...`);
+            
+            try {
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    log('WebSocket connected successfully!', 'success');
+                    updateStatus(true, 'websocket');
+                };
+                
+                ws.onmessage = (event) => {
+                    messagesReceived++;
+                    bytesReceived += event.data.length;
+                    updateMetrics();
+                    
+                    try {
+                        const message = JSON.parse(event.data);
+                        
+                        if (message.id && pendingRequests.has(message.id)) {
+                            const { resolve, method } = pendingRequests.get(message.id);
+                            pendingRequests.delete(message.id);
+                            
+                            if (message.error) {
+                                log(`Error in ${method}: ${message.error.message}`, 'error');
+                            } else {
+                                log(`Response from ${method}:`, 'success');
+                                log(JSON.stringify(message.result, null, 2));
+                            }
+                            
+                            resolve(message);
+                        }
+                    } catch (error) {
+                        log(`Failed to parse message: ${error.message}`, 'error');
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    log(`WebSocket error: ${error.message || 'Connection failed'}`, 'error');
+                };
+                
+                ws.onclose = () => {
+                    log('WebSocket disconnected');
+                    updateStatus(false);
+                    ws = null;
+                };
+                
+            } catch (error) {
+                log(`Connection error: ${error.message}`, 'error');
+            }
+        }
+
+        function connectSSE() {
+            log(`Connecting to SSE at ${BASE_URL}/stream...`);
+            
+            try {
+                eventSource = new EventSource(`${BASE_URL}/stream`);
+                
+                eventSource.onopen = () => {
+                    log('SSE connected successfully!', 'success');
+                    updateStatus(true, 'sse');
+                };
+                
+                eventSource.onmessage = (event) => {
+                    messagesReceived++;
+                    bytesReceived += event.data.length;
+                    updateMetrics();
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`SSE message: ${JSON.stringify(data)}`);
+                    } catch (error) {
+                        log(`SSE message: ${event.data}`);
+                    }
+                };
+                
+                eventSource.addEventListener('status', (event) => {
+                    const eventLog = document.getElementById('eventLog');
+                    eventLog.innerHTML += `
+                        <div class="log-entry">
+                            <span class="timestamp">[${new Date().toLocaleTimeString()}]</span>
+                            Status update: ${event.data}
+                        </div>
+                    `;
+                    eventLog.scrollTop = eventLog.scrollHeight;
+                });
+                
+                eventSource.onerror = (error) => {
+                    log('SSE connection error', 'error');
+                    updateStatus(false);
+                    eventSource.close();
+                    eventSource = null;
+                };
+                
+            } catch (error) {
+                log(`SSE connection error: ${error.message}`, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                log('Disconnecting WebSocket...');
+                ws.close();
+            }
+            if (eventSource) {
+                log('Disconnecting SSE...');
+                eventSource.close();
+                eventSource = null;
+            }
+            updateStatus(false);
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('eventLog').innerHTML = '<div class="log-entry">Waiting for events...</div>';
+            messagesReceived = 0;
+            bytesReceived = 0;
+            updateMetrics();
+            log('Output cleared');
+        }
+
+        async function sendRequest(method, params = {}) {
+            if (connectionType === 'websocket' && ws && ws.readyState === WebSocket.OPEN) {
+                const id = requestId++;
+                const request = {
+                    jsonrpc: '2.0',
+                    id,
+                    method,
+                    params
+                };
+                
+                return new Promise((resolve) => {
+                    pendingRequests.set(id, { resolve, method });
+                    ws.send(JSON.stringify(request));
+                    log(`Sent WebSocket request: ${method}`);
+                });
+            } else {
+                // Use HTTP as fallback
+                log(`Sending HTTP request: ${method}`);
+                const response = await fetch(`${BASE_URL}/mcp`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: requestId++,
+                        method,
+                        params
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.error) {
+                    log(`Error: ${result.error.message}`, 'error');
+                } else {
+                    log(`Response received:`, 'success');
+                    log(JSON.stringify(result.result, null, 2));
+                }
+                return result;
+            }
+        }
+
+        async function streamRequest(method, params = {}) {
+            log(`Starting streaming request: ${method}`);
+            
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            progressBar.style.display = 'block';
+            
+            try {
+                const response = await fetch(`${BASE_URL}/mcp/stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        id: requestId++,
+                        method,
+                        params: { ...params, stream: true }
+                    })
+                });
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') {
+                                log('Streaming complete', 'success');
+                                progressBar.style.display = 'none';
+                                continue;
+                            }
+                            
+                            try {
+                                const chunk = JSON.parse(data);
+                                
+                                if (chunk.type === 'progress' || chunk.type === 'status') {
+                                    const progress = chunk.progress || 0;
+                                    progressFill.style.width = `${progress}%`;
+                                    progressFill.textContent = `${progress}%`;
+                                    log(`Progress: ${chunk.message}`);
+                                } else if (chunk.type === 'data') {
+                                    log(`Received ${chunk.workflows ? chunk.workflows.length : 'data'} items`);
+                                    log(JSON.stringify(chunk, null, 2));
+                                } else if (chunk.type === 'error') {
+                                    log(`Streaming error: ${chunk.message}`, 'error');
+                                } else if (chunk.type === 'complete') {
+                                    log(`Streaming complete: ${JSON.stringify(chunk.data || chunk)}`, 'success');
+                                }
+                            } catch (e) {
+                                log(`Failed to parse chunk: ${data}`, 'error');
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                log(`Streaming error: ${error.message}`, 'error');
+                progressBar.style.display = 'none';
+            }
+        }
+
+        // API Functions
+        async function listTools() {
+            await sendRequest('tools/list');
+        }
+
+        async function getStatistics() {
+            await sendRequest('tools/call', {
+                name: 'get_statistics',
+                arguments: {}
+            });
+        }
+
+        async function getCategories() {
+            await sendRequest('tools/call', {
+                name: 'get_categories',
+                arguments: {}
+            });
+        }
+
+        async function searchWorkflows() {
+            const query = document.getElementById('searchQuery').value;
+            await sendRequest('tools/call', {
+                name: 'search_workflows',
+                arguments: {
+                    query: query,
+                    limit: 10
+                }
+            });
+        }
+
+        async function getWorkflow() {
+            const filename = document.getElementById('workflowFilename').value;
+            if (!filename) {
+                log('Please enter a workflow filename', 'error');
+                return;
+            }
+            
+            await sendRequest('tools/call', {
+                name: 'get_workflow',
+                arguments: {
+                    filename: filename
+                }
+            });
+        }
+
+        async function streamSearch() {
+            const query = document.getElementById('streamSearchQuery').value;
+            const limit = parseInt(document.getElementById('streamLimit').value) || 100;
+            
+            await streamRequest('tools/call', {
+                name: 'search_workflows',
+                arguments: {
+                    query: query,
+                    limit: limit
+                }
+            });
+        }
+
+        async function streamBulkAnalysis() {
+            const minNodes = document.getElementById('minNodes').value;
+            const maxNodes = document.getElementById('maxNodes').value;
+            
+            const criteria = {};
+            if (minNodes) criteria.min_nodes = parseInt(minNodes);
+            if (maxNodes) criteria.max_nodes = parseInt(maxNodes);
+            
+            await streamRequest('tools/call', {
+                name: 'bulk_analyze',
+                arguments: {
+                    criteria: criteria
+                }
+            });
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        function subscribeToEvents() {
+            if (!eventSource) {
+                connectSSE();
+            }
+            log('Subscribed to server events', 'success');
+        }
+
+        function unsubscribeFromEvents() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+                log('Unsubscribed from server events');
+            }
+        }
+
+        // Check server health on load
+        fetch(`${BASE_URL}/health`)
+            .then(response => response.json())
+            .then(data => {
+                log(`Server health check: ${JSON.stringify(data)}`, 'success');
+                log(`Server running on port ${data.port || PORT}`);
+            })
+            .catch(error => {
+                log(`Server not reachable at ${BASE_URL} - ${error.message}`, 'error');
+                log(`Make sure to start the server with: MCP_PORT=${PORT} npm run mcp:http`, 'warning');
+            });
+    </script>
+</body>
+</html>
