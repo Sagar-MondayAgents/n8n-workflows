@@ -1,9 +1,15 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs-extra');
-const crypto = require('crypto');
+// src/database.js
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs-extra';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-class WorkflowDatabase {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export default class WorkflowDatabase {
   constructor(dbPath = 'database/workflows.db') {
     this.dbPath = dbPath;
     this.workflowsDir = 'workflows';
@@ -22,101 +28,80 @@ class WorkflowDatabase {
     const dbDir = path.dirname(this.dbPath);
     await fs.ensureDir(dbDir);
 
-    return new Promise((resolve, reject) => {
-      this.db = new sqlite3.Database(this.dbPath, (err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        
-        // Enable WAL mode for better performance
-        this.db.run('PRAGMA journal_mode=WAL');
-        this.db.run('PRAGMA synchronous=NORMAL');
-        this.db.run('PRAGMA cache_size=10000');
-        this.db.run('PRAGMA temp_store=MEMORY');
-        
-        this.createTables().then(resolve).catch(reject);
-      });
-    });
+    // Open database synchronously with better-sqlite3
+    this.db = new Database(this.dbPath);
+    
+    // Enable WAL mode for better performance
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('synchronous = NORMAL');
+    this.db.pragma('cache_size = 10000');
+    this.db.pragma('temp_store = MEMORY');
+    
+    this.createTables();
   }
 
-  async createTables() {
-    // Creating database tables
-    return new Promise((resolve, reject) => {
-      const queries = [
-        // Main workflows table
-        `CREATE TABLE IF NOT EXISTS workflows (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          filename TEXT UNIQUE NOT NULL,
-          name TEXT NOT NULL,
-          workflow_id TEXT,
-          active BOOLEAN DEFAULT 0,
-          description TEXT,
-          trigger_type TEXT,
-          complexity TEXT,
-          node_count INTEGER DEFAULT 0,
-          integrations TEXT,
-          tags TEXT,
-          created_at TEXT,
-          updated_at TEXT,
-          file_hash TEXT,
-          file_size INTEGER,
-          analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )`,
-        
-        // FTS5 table for full-text search (simplified)
-        `CREATE VIRTUAL TABLE IF NOT EXISTS workflows_fts USING fts5(
-          filename,
-          name,
-          description,
-          integrations,
-          tags
-        )`,
-        
-        // Indexes for performance
-        'CREATE INDEX IF NOT EXISTS idx_trigger_type ON workflows(trigger_type)',
-        'CREATE INDEX IF NOT EXISTS idx_complexity ON workflows(complexity)',
-        'CREATE INDEX IF NOT EXISTS idx_active ON workflows(active)',
-        'CREATE INDEX IF NOT EXISTS idx_node_count ON workflows(node_count)',
-        'CREATE INDEX IF NOT EXISTS idx_filename ON workflows(filename)',
-        
-        // Triggers to sync FTS table (simplified)
-        `CREATE TRIGGER IF NOT EXISTS workflows_ai AFTER INSERT ON workflows BEGIN
-          INSERT INTO workflows_fts(filename, name, description, integrations, tags)
-          VALUES (new.filename, new.name, new.description, new.integrations, new.tags);
-        END`,
-        
-        `CREATE TRIGGER IF NOT EXISTS workflows_ad AFTER DELETE ON workflows BEGIN
-          DELETE FROM workflows_fts WHERE filename = old.filename;
-        END`,
-        
-        `CREATE TRIGGER IF NOT EXISTS workflows_au AFTER UPDATE ON workflows BEGIN
-          DELETE FROM workflows_fts WHERE filename = old.filename;
-          INSERT INTO workflows_fts(filename, name, description, integrations, tags)
-          VALUES (new.filename, new.name, new.description, new.integrations, new.tags);
-        END`
-      ];
-
-      // Run queries sequentially to avoid race conditions
-      const runQuery = (index) => {
-        if (index >= queries.length) {
-          resolve();
-          return;
-        }
-        
-        const query = queries[index];
-        this.db.run(query, (err) => {
-          if (err) {
-            console.error(`Error in query ${index + 1}:`, err.message);
-            reject(err);
-            return;
-          }
-          runQuery(index + 1);
-        });
-      };
-      
-      runQuery(0);
-    });
+  createTables() {
+    // Main workflows table
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS workflows (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        workflow_id TEXT,
+        active BOOLEAN DEFAULT 0,
+        description TEXT,
+        trigger_type TEXT,
+        complexity TEXT,
+        node_count INTEGER DEFAULT 0,
+        integrations TEXT,
+        tags TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        file_hash TEXT,
+        file_size INTEGER,
+        analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // FTS5 table for full-text search
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS workflows_fts USING fts5(
+        filename,
+        name,
+        description,
+        integrations,
+        tags
+      )
+    `);
+    
+    // Indexes for performance
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_trigger_type ON workflows(trigger_type)');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_complexity ON workflows(complexity)');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_active ON workflows(active)');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_node_count ON workflows(node_count)');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_filename ON workflows(filename)');
+    
+    // Triggers to sync FTS table
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS workflows_ai AFTER INSERT ON workflows BEGIN
+        INSERT INTO workflows_fts(filename, name, description, integrations, tags)
+        VALUES (new.filename, new.name, new.description, new.integrations, new.tags);
+      END
+    `);
+    
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS workflows_ad AFTER DELETE ON workflows BEGIN
+        DELETE FROM workflows_fts WHERE filename = old.filename;
+      END
+    `);
+    
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS workflows_au AFTER UPDATE ON workflows BEGIN
+        DELETE FROM workflows_fts WHERE filename = old.filename;
+        INSERT INTO workflows_fts(filename, name, description, integrations, tags)
+        VALUES (new.filename, new.name, new.description, new.integrations, new.tags);
+      END
+    `);
   }
 
   getFileHash(filePath) {
@@ -284,13 +269,13 @@ class WorkflowDatabase {
       
       try {
         // Check if workflow exists and if hash changed
-        const existing = await this.getWorkflowByFilename(file);
+        const existing = this.getWorkflowByFilename(file);
         if (!forceReindex && existing && existing.file_hash === workflow.file_hash) {
           skipped++;
           continue;
         }
         
-        await this.upsertWorkflow(workflow);
+        this.upsertWorkflow(workflow);
         processed++;
       } catch (error) {
         console.error(`Error indexing workflow ${file}:`, error.message);
@@ -301,51 +286,36 @@ class WorkflowDatabase {
     return { processed, skipped, errors, total: jsonFiles.length };
   }
 
-  async getWorkflowByFilename(filename) {
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        'SELECT * FROM workflows WHERE filename = ?',
-        [filename],
-        (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        }
-      );
-    });
+  getWorkflowByFilename(filename) {
+    return this.db.prepare('SELECT * FROM workflows WHERE filename = ?').get(filename);
   }
 
-  async upsertWorkflow(workflow) {
-    return new Promise((resolve, reject) => {
-      const sql = `
-        INSERT OR REPLACE INTO workflows (
-          filename, name, workflow_id, active, description, trigger_type,
-          complexity, node_count, integrations, tags, created_at, updated_at,
-          file_hash, file_size, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-      `;
-      
-      const params = [
-        workflow.filename,
-        workflow.name,
-        workflow.workflow_id,
-        workflow.active,
-        workflow.description,
-        workflow.trigger_type,
-        workflow.complexity,
-        workflow.node_count,
-        JSON.stringify(workflow.integrations),
-        JSON.stringify(workflow.tags),
-        workflow.created_at,
-        workflow.updated_at,
-        workflow.file_hash,
-        workflow.file_size
-      ];
-      
-      this.db.run(sql, params, function(err) {
-        if (err) reject(err);
-        else resolve(this.lastID);
-      });
-    });
+  upsertWorkflow(workflow) {
+    const sql = `
+      INSERT OR REPLACE INTO workflows (
+        filename, name, workflow_id, active, description, trigger_type,
+        complexity, node_count, integrations, tags, created_at, updated_at,
+        file_hash, file_size, analyzed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `;
+    
+    const stmt = this.db.prepare(sql);
+    return stmt.run(
+      workflow.filename,
+      workflow.name,
+      workflow.workflow_id,
+      workflow.active ? 1 : 0,  // Convert boolean to integer
+      workflow.description,
+      workflow.trigger_type,
+      workflow.complexity,
+      workflow.node_count,
+      JSON.stringify(workflow.integrations),
+      JSON.stringify(workflow.tags),
+      workflow.created_at,
+      workflow.updated_at,
+      workflow.file_hash,
+      workflow.file_size
+    );
   }
 
   buildFTSQuery(query) {
@@ -387,106 +357,63 @@ class WorkflowDatabase {
     return allTerms.join(' AND ');
   }
 
-  async searchWorkflows(query = '', triggerFilter = 'all', complexityFilter = 'all', 
-                       activeOnly = false, limit = 50, offset = 0) {
+  searchWorkflows(query = '', triggerFilter = 'all', complexityFilter = 'all', 
+                 activeOnly = false, limit = 50, offset = 0) {
     if (!this.initialized) {
-      await this.initialize();
+      throw new Error('Database not initialized');
     }
     
-    return new Promise((resolve, reject) => {
-      let sql = '';
-      let params = [];
-      
-      if (query.trim()) {
-        // Use FTS search with partial matching
-        const ftsQuery = this.buildFTSQuery(query.trim());
-        sql = `
-          SELECT w.* FROM workflows w
-          JOIN workflows_fts fts ON w.id = fts.rowid
-          WHERE workflows_fts MATCH ?
-        `;
-        params.push(ftsQuery);
-      } else {
-        // Regular search
-        sql = 'SELECT * FROM workflows WHERE 1=1';
-      }
-      
-      // Add filters
-      if (triggerFilter !== 'all') {
-        sql += ' AND trigger_type = ?';
-        params.push(triggerFilter);
-      }
-      
-      if (complexityFilter !== 'all') {
-        sql += ' AND complexity = ?';
-        params.push(complexityFilter);
-      }
-      
-      if (activeOnly) {
-        sql += ' AND active = 1';
-      }
-      
-      // Count total - rebuild query for FTS compatibility
-      let countSql;
-      let countParams = [...params];
-      
-      if (query.trim()) {
-        // For FTS queries, we need to rebuild the count query
-        countSql = `
-          SELECT COUNT(*) as total FROM workflows w
-          JOIN workflows_fts fts ON w.id = fts.rowid
-          WHERE workflows_fts MATCH ?
-        `;
-        countParams = [this.buildFTSQuery(query.trim())];
-        
-        // Add filters to count query
-        if (triggerFilter !== 'all') {
-          countSql += ' AND trigger_type = ?';
-          countParams.push(triggerFilter);
-        }
-        
-        if (complexityFilter !== 'all') {
-          countSql += ' AND complexity = ?';
-          countParams.push(complexityFilter);
-        }
-        
-        if (activeOnly) {
-          countSql += ' AND active = 1';
-        }
-      } else {
-        countSql = `SELECT COUNT(*) as total FROM (${sql})`;
-        countParams = params.slice(0, -2); // Remove LIMIT and OFFSET for count
-      }
-      
-      this.db.get(countSql, countParams, (err, countResult) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        
-        const total = countResult.total;
-        
-        // Add pagination
-        sql += ' ORDER BY name LIMIT ? OFFSET ?';
-        params.push(limit, offset);
-        
-        this.db.all(sql, params, (err, rows) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          
-          // Parse JSON fields
-          const workflows = rows.map(row => ({
-            ...row,
-            integrations: JSON.parse(row.integrations || '[]'),
-            tags: JSON.parse(row.tags || '[]')
-          }));
-          
-          resolve({ workflows, total });
-        });
-      });
-    });
+    let sql = '';
+    let params = [];
+    
+    if (query.trim()) {
+      // Use FTS search with partial matching
+      const ftsQuery = this.buildFTSQuery(query.trim());
+      sql = `
+        SELECT w.* FROM workflows w
+        JOIN workflows_fts fts ON w.filename = fts.filename
+        WHERE workflows_fts MATCH ?
+      `;
+      params.push(ftsQuery);
+    } else {
+      // Regular search
+      sql = 'SELECT * FROM workflows WHERE 1=1';
+    }
+    
+    // Add filters
+    if (triggerFilter !== 'all') {
+      sql += ' AND trigger_type = ?';
+      params.push(triggerFilter);
+    }
+    
+    if (complexityFilter !== 'all') {
+      sql += ' AND complexity = ?';
+      params.push(complexityFilter);
+    }
+    
+    if (activeOnly) {
+      sql += ' AND active = 1';
+    }
+    
+    // Get total count
+    const countStmt = this.db.prepare(sql.replace(/SELECT \*/, 'SELECT COUNT(*) as total'));
+    const { total } = countStmt.get(...params);
+    
+    // Add pagination
+    sql += ' ORDER BY name LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+    
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...params);
+    
+    // Parse JSON fields
+    const workflows = rows.map(row => ({
+      ...row,
+      integrations: JSON.parse(row.integrations || '[]'),
+      tags: JSON.parse(row.tags || '[]')
+    }));
+    
+    return { workflows, total };
   }
 
   async getStats() {
@@ -494,105 +421,71 @@ class WorkflowDatabase {
       await this.initialize();
     }
     
-    return new Promise((resolve, reject) => {
-      const queries = [
-        'SELECT COUNT(*) as total FROM workflows',
-        'SELECT COUNT(*) as active FROM workflows WHERE active = 1',
-        'SELECT COUNT(*) as inactive FROM workflows WHERE active = 0',
-        'SELECT trigger_type, COUNT(*) as count FROM workflows GROUP BY trigger_type',
-        'SELECT complexity, COUNT(*) as count FROM workflows GROUP BY complexity',
-        'SELECT SUM(node_count) as total_nodes FROM workflows',
-        'SELECT analyzed_at FROM workflows ORDER BY analyzed_at DESC LIMIT 1'
-      ];
-      
-      Promise.all(queries.map(sql => 
-        new Promise((resolve, reject) => {
-          this.db.all(sql, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-          });
-        })
-      )).then(results => {
-        const [total, active, inactive, triggers, complexity, nodes, lastIndexed] = results;
-        
-        const triggersMap = {};
-        triggers.forEach(row => {
-          triggersMap[row.trigger_type] = row.count;
-        });
-        
-        const complexityMap = {};
-        complexity.forEach(row => {
-          complexityMap[row.complexity] = row.count;
-        });
-        
-        // Count unique integrations
-        this.db.all('SELECT integrations FROM workflows', (err, rows) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          
-          const allIntegrations = new Set();
-          rows.forEach(row => {
-            try {
-              const integrations = JSON.parse(row.integrations || '[]');
-              integrations.forEach(integration => allIntegrations.add(integration));
-            } catch (e) {
-              // Ignore parse errors
-            }
-          });
-          
-          resolve({
-            total: total[0].total,
-            active: active[0].active,
-            inactive: inactive[0].inactive,
-            triggers: triggersMap,
-            complexity: complexityMap,
-            total_nodes: nodes[0].total_nodes || 0,
-            unique_integrations: allIntegrations.size,
-            last_indexed: lastIndexed[0]?.analyzed_at || ''
-          });
-        });
-      }).catch(reject);
+    const stats = {
+      total: this.db.prepare('SELECT COUNT(*) as count FROM workflows').get().count,
+      active: this.db.prepare('SELECT COUNT(*) as count FROM workflows WHERE active = 1').get().count,
+      inactive: this.db.prepare('SELECT COUNT(*) as count FROM workflows WHERE active = 0').get().count,
+      triggers: {},
+      complexity: {},
+      total_nodes: this.db.prepare('SELECT SUM(node_count) as sum FROM workflows').get().sum || 0,
+      unique_integrations: 0,
+      last_indexed: ''
+    };
+    
+    // Get trigger distribution
+    const triggers = this.db.prepare('SELECT trigger_type, COUNT(*) as count FROM workflows GROUP BY trigger_type').all();
+    triggers.forEach(row => {
+      stats.triggers[row.trigger_type] = row.count;
     });
+    
+    // Get complexity distribution
+    const complexity = this.db.prepare('SELECT complexity, COUNT(*) as count FROM workflows GROUP BY complexity').all();
+    complexity.forEach(row => {
+      stats.complexity[row.complexity] = row.count;
+    });
+    
+    // Count unique integrations
+    const rows = this.db.prepare('SELECT integrations FROM workflows').all();
+    const allIntegrations = new Set();
+    rows.forEach(row => {
+      try {
+        const integrations = JSON.parse(row.integrations || '[]');
+        integrations.forEach(integration => allIntegrations.add(integration));
+      } catch (e) {
+        // Ignore parse errors
+      }
+    });
+    stats.unique_integrations = allIntegrations.size;
+    
+    // Get last indexed time
+    const lastIndexed = this.db.prepare('SELECT analyzed_at FROM workflows ORDER BY analyzed_at DESC LIMIT 1').get();
+    stats.last_indexed = lastIndexed?.analyzed_at || '';
+    
+    return stats;
   }
 
-  async getWorkflowDetail(filename) {
-    return new Promise((resolve, reject) => {
-      this.db.get(
-        'SELECT * FROM workflows WHERE filename = ?',
-        [filename],
-        (err, row) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          
-          if (!row) {
-            resolve(null);
-            return;
-          }
-          
-          // Parse JSON fields and load raw workflow data
-          const workflow = {
-            ...row,
-            integrations: JSON.parse(row.integrations || '[]'),
-            tags: JSON.parse(row.tags || '[]')
-          };
-          
-          // Load raw workflow JSON
-          try {
-            const workflowPath = path.join(this.workflowsDir, filename);
-            const rawWorkflow = fs.readJsonSync(workflowPath);
-            workflow.raw_workflow = rawWorkflow;
-          } catch (error) {
-            console.error(`Error loading raw workflow ${filename}:`, error.message);
-          }
-          
-          resolve(workflow);
-        }
-      );
-    });
+  getWorkflowDetail(filename) {
+    const row = this.db.prepare('SELECT * FROM workflows WHERE filename = ?').get(filename);
+    
+    if (!row) return null;
+    
+    // Parse JSON fields and load raw workflow data
+    const workflow = {
+      ...row,
+      integrations: JSON.parse(row.integrations || '[]'),
+      tags: JSON.parse(row.tags || '[]')
+    };
+    
+    // Load raw workflow JSON
+    try {
+      const workflowPath = path.join(this.workflowsDir, filename);
+      const rawWorkflow = fs.readJsonSync(workflowPath);
+      workflow.raw_workflow = rawWorkflow;
+    } catch (error) {
+      console.error(`Error loading raw workflow ${filename}:`, error.message);
+    }
+    
+    return workflow;
   }
 
   close() {
@@ -601,5 +494,3 @@ class WorkflowDatabase {
     }
   }
 }
-
-module.exports = WorkflowDatabase; 

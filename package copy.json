@@ -2,8 +2,7 @@
   "name": "n8n-workflow-docs",
   "version": "1.0.0",
   "description": "N8N Workflow Documentation System - Node.js Implementation",
-  "main": "src/http-server.js",
-  "type": "module",
+  "main": "src/server.js",
   "mcp": {
     "server": "src/mcp-server.js",
     "name": "n8n-workflows",
@@ -15,16 +14,16 @@
   "scripts": {
     "start": "node src/http-server.js",
     "start:server": "node src/http-server.js",
-    "dev": "nodemon src/http-server.js",
+    "dev": "nodemon src/server.js",
     "init": "node src/init-db.js",
     "index": "node src/index-workflows.js",
     "mcp": "node src/mcp-server.js",
     "mcp:start": "node src/mcp-server.js",
     "mcp:dev": "node --watch src/mcp-server.js",
-    "prepare": "npm run init"
+    "prepare": "npm run init && npm run index"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.16.0",
+    "@modelcontextprotocol/sdk": "^1.15.1",
     "better-sqlite3": "^12.2.0",
     "chokidar": "^3.5.3",
     "commander": "^11.1.0",
@@ -34,7 +33,6 @@
     "express-rate-limit": "^7.1.5",
     "fs-extra": "^11.2.0",
     "helmet": "^7.1.0",
-    "js-yaml": "^4.1.0",
     "sqlite3": "^5.1.6"
   },
   "devDependencies": {
@@ -44,13 +42,10 @@
     "n8n",
     "workflows",
     "documentation",
-    "automation",
-    "mcp",
-    "claude"
+    "automation"
   ],
   "author": "",
   "license": "MIT",
-  "engines": {
-    "node": ">=16.0.0"
-  }
+  "type": "module"
+
 }

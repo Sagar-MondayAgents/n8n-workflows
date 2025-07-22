@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-const { program } = require('commander');
-const WorkflowDatabase = require('./database');
+import { program } from 'commander';
+import WorkflowDatabase from './database.js';
+import { fileURLToPath } from 'url';
 
 function printBanner() {
   console.log('📚 N8N Workflow Indexer');
@@ -13,7 +14,10 @@ async function indexWorkflows(force = false) {
   
   try {
     console.log('🔄 Starting workflow indexing...');
+    console.log('📁 Working directory:', process.cwd());
+    
     await db.initialize();
+    console.log('✅ Database initialized');
     
     const results = await db.indexWorkflows(force);
     
@@ -34,6 +38,7 @@ async function indexWorkflows(force = false) {
     
   } catch (error) {
     console.error('❌ Indexing failed:', error.message);
+    console.error('Stack trace:', error.stack);
     process.exit(1);
   } finally {
     db.close();
@@ -45,12 +50,13 @@ program
   .description('Index N8N workflows into the database')
   .option('-f, --force', 'Force reindexing of all workflows')
   .option('--stats', 'Show database statistics only')
-  .parse();
+  .parse(process.argv);
 
 const options = program.opts();
 
 async function main() {
   printBanner();
+  console.log('🚀 Starting main function...');
   
   const db = new WorkflowDatabase();
   
@@ -81,6 +87,7 @@ async function main() {
       }
     } catch (error) {
       console.error('❌ Error fetching stats:', error.message);
+      console.error('Stack trace:', error.stack);
       process.exit(1);
     } finally {
       db.close();
@@ -90,8 +97,20 @@ async function main() {
   }
 }
 
-if (require.main === module) {
-  main();
+// Check if this module is being run directly
+console.log('Script loaded, checking if main...');
+console.log('import.meta.url:', import.meta.url);
+console.log('process.argv[1]:', process.argv[1]);
+
+if (import.meta.url === `file://${process.argv[1]}` || 
+    import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}`) {
+  console.log('Running as main script');
+  main().catch(error => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
+} else {
+  console.log('Script imported as module');
 }
 
-module.exports = { indexWorkflows }; 
+export { indexWorkflows };

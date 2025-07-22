@@ -1,0 +1,62 @@
+{
+    "messaging": [
+      "telegram_webhook_example.json",
+      "slack_notification_workflow.json",
+      "discord_bot_automation.json"
+    ],
+    "ai_ml": [
+      "openai_integration.json",
+      "chatgpt_workflow.json",
+      "ai_content_generator.json"
+    ],
+    "database": [
+      "mysql_backup_automation.json",
+      "postgres_sync_workflow.json",
+      "mongodb_data_pipeline.json"
+    ],
+    "email": [
+      "gmail_automation.json",
+      "sendgrid_campaign.json",
+      "email_parser_workflow.json"
+    ],
+    "cloud_storage": [
+      "google_drive_sync.json",
+      "dropbox_backup.json",
+      "s3_upload_workflow.json"
+    ],
+    "project_management": [
+      "jira_automation.json",
+      "trello_sync.json",
+      "asana_workflow.json"
+    ],
+    "social_media": [
+      "twitter_bot.json",
+      "instagram_poster.json",
+      "linkedin_automation.json"
+    ],
+    "ecommerce": [
+      "shopify_order_processor.json",
+      "woocommerce_sync.json",
+      "stripe_payment_workflow.json"
+    ],
+    "analytics": [
+      "google_analytics_report.json",
+      "data_visualization.json",
+      "metrics_dashboard.json"
+    ],
+    "calendar_tasks": [
+      "google_calendar_sync.json",
+      "meeting_scheduler.json",
+      "task_automation.json"
+    ],
+    "forms": [
+      "typeform_processor.json",
+      "google_forms_automation.json",
+      "survey_workflow.json"
+    ],
+    "development": [
+      "github_ci_cd.json",
+      "gitlab_automation.json",
+      "code_deployment.json"
+    ]
+  }
